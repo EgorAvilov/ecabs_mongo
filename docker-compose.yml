@@ -1,0 +1,67 @@
+version: "3.9"
+
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq'
+    restart: on-failure
+    env_file:
+      - .env
+    ports:
+      - 5672:5672
+      - 15672:15672
+    networks:
+      - rabbitmq_go_net
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    hostname: mongodb
+    networks:
+      - mongodb_net
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: echo 'db.stats().ok' | mongo mongodb:27017/ecabs --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+  producer:
+    container_name: producer_mongo
+    image: producer_mongo:1.0
+    build: .
+    restart: on-failure
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+    ports:
+      - 8080:8080
+    networks:
+      - rabbitmq_go_net
+  consumer:
+    container_name: consumer_mongo
+    image: consumer_mongo:1.0
+    build: .
+    restart: on-failure
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+      - rabbitmq
+    ports:
+      - 8081:8081
+    networks:
+      - rabbitmq_go_net
+      - mongodb_net
+networks:
+  rabbitmq_go_net:
+    driver: bridge
+  mongodb_net:
+    driver: bridge
